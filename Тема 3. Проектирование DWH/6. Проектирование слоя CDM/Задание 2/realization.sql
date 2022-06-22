@@ -52,3 +52,5 @@ alter table cdm.dm_settlement_report
         restaurant_id, settlement_year, settlement_month
     )
 ;
+
+-- Двигайтесь дальше! Ваш код: 5zF17A2Gzb
