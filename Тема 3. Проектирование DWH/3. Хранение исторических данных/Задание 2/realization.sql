@@ -20,6 +20,7 @@ alter table products
 
 -- Добавьте новый внешний ключ sales_products_id_fk в sales
 alter table sales
-    add constraint sales_products_id_fk references products (id);
+    add constraint sales_products_id_fk 
+        foreign key (product_id) references products (id);
 
---
+-- Двигайтесь дальше! Ваш код: i6mYZs5YcY
