@@ -65,11 +65,11 @@ create table dds.dm_orders
 
 alter table dds.dm_orders
     add constraint dm_orders_restaurant_id_fkey 
-        foreign key (restaurant_id) references dds.dm_restaurants (id),
+        foreign key (restaurant_id) references dds.dm_restaurants (id) on delete cascade,
     add constraint dm_orders_user_id_fkey 
-        foreign key (user_id) references dds.dm_users (id),
+        foreign key (user_id) references dds.dm_users (id) on delete cascade,
     add constraint dm_orders_timestamp_id_fkey 
-        foreign key (timestamp_id) references dds.dm_timestamps (id);
+        foreign key (timestamp_id) references dds.dm_timestamps (id) on delete cascade;
 
 drop table if exists dds.fct_product_sales;
 create table dds.fct_product_sales
@@ -91,8 +91,8 @@ create table dds.fct_product_sales
 
 alter table dds.fct_product_sales
     add constraint fct_product_sales_product_id_fkey 
-        foreign key (product_id) references dds.dm_products (id),
+        foreign key (product_id) references dds.dm_products (id) on delete cascade,
     add constraint fct_product_sales_order_id_fkey 
-        foreign key (order_id) references dds.dm_orders (id);
+        foreign key (order_id) references dds.dm_orders (id) on delete cascade;
 
 -- Двигайтесь дальше! Ваш код: NVyO1i2Dr5
