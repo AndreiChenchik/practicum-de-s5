@@ -23,5 +23,6 @@ def submit(t_code, rlz_file=''):
 
 if __name__ == '__main__':
     submit(
-        'de05030901'
+        'realization.sql'
+        'de05030901',
     )
