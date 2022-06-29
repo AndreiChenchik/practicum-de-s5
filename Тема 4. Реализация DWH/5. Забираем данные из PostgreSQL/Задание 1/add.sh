@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-docker exec s5-lessons-de-pg-cr-af-1 airflow connections add 'PG_WAREHOUSE_CONNECTION2' \
+docker exec s5-lessons-de-pg-cr-af-1 airflow connections add 'PG_WAREHOUSE_CONNECTION' \
     --conn-json '{
         "conn_type": "postgres",
         "login": "jovyan",
@@ -11,12 +11,12 @@ docker exec s5-lessons-de-pg-cr-af-1 airflow connections add 'PG_WAREHOUSE_CONNE
     }'
 
 
-docker exec s5-lessons-de-pg-cr-af-1 airflow connections add 'PG_ORIGIN_BONUS_SYSTEM_CONNECTION2' \
+docker exec s5-lessons-de-pg-cr-af-1 airflow connections add 'PG_ORIGIN_BONUS_SYSTEM_CONNECTION' \
     --conn-json '{
         "conn_type": "postgres",
         "login": "student",
-        "password": "student1",
-        "host": "rc1a-1kn18k47wuzaks6h.mdb.yandexcloud.net",
+        "password": "replacepassword",
+        "host": "yandexcloud.net",
         "port": 6432,
         "schema": "de-public",
         "extra": {
