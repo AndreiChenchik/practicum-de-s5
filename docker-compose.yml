@@ -26,6 +26,7 @@ services:
     volumes:
       - mydb:/var/lib/postgresql
       - mylessons:/lessons
+      - ./dags:/lessons/dags
       
   connect:
     image: quay.io/debezium/connect:1.9
