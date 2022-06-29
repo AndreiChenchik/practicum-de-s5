@@ -77,4 +77,5 @@ with DAG(**dag_params) as dag:
 
     start >> stg_layer >> end
 
-# Двигайтесь дальше! Ваш код: WHBkgRkvLo
+# 4.5.2: Двигайтесь дальше! Ваш код: WHBkgRkvLo
+# 4.5.3: Двигайтесь дальше! Ваш код: lgkXY8KtCn
