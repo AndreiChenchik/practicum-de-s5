@@ -15,8 +15,8 @@ def submit(rlz_file, t_code):
             "test": t_code
             })
 
-    print(r.json()['stdout'])
     print(r.json()['stderr'].replace('/app/__test.py',rlz_file))
+    print(r.json()['stdout'])
 
 if __name__ == '__main__':
     submit(
