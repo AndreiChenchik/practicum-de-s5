@@ -18,11 +18,11 @@ def submit(t_code, rlz_file=''):
             "test": t_code
             })
 
-    print(r.json()['stdout'])
     print(r.json()['stderr'].replace('/app/__test.py',rlz_file))
+    print(r.json()['stdout'])
 
 if __name__ == '__main__':
     submit(
-        'realization.sql',
-        'de05030901'
+        'de05030901',
+        'realization.sql'
     )
