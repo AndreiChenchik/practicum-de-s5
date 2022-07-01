@@ -1,7 +1,7 @@
-create table stg.srv_etl_settings (
+create table stg.srv_wf_settings (
 	id serial primary key,
-	elt_workflow_key varchar,
-	elt_workflow_settings text
+	workflow_key varchar,
+	workflow_settings text
 );
 
 -- Двигайтесь дальше! Ваш код: RqgcX9kTN6

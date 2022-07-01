@@ -11,15 +11,16 @@ from airflow.utils.task_group import TaskGroup
 import psycopg2
 
 from mongo import MongoConnect
+from bson import json_util
 
 
 def get_latest_run_setting(cursor, run_name, parameter_name):
     cursor.execute(
         f"""
         select 
-            elt_workflow_settings 
-        from stg.srv_etl_settings
-        where elt_workflow_key = '{run_name}'
+            workflow_settings 
+        from stg.srv_wf_settings
+        where workflow_key = '{run_name}'
         order by id desc
         limit 1;
     """
@@ -36,11 +37,13 @@ def get_latest_run_setting(cursor, run_name, parameter_name):
     return last_run_parameter
 
 
-def push_to_postgres(iterable, cursor, table):
+def push_to_postgres(iterable, cursor, table, fields=None):
     batch_size = 200
     events_batch = []
+    fields = f"({', '.join(fields)})" if fields else ""
+
     insert_batch_sql = f"""
-        insert into {table} values %s
+        insert into {table} {fields} values %s
     """
     insert_batch = lambda batch: psycopg2.extras.execute_values(
         cursor, insert_batch_sql, batch
@@ -62,8 +65,7 @@ def load_from_mongo(
     destination_table,
 ):
     # Состояние с предыдущего запуска
-    dest_conn = destination_connection.get_conn()
-    dest_cursor = dest_conn.cursor()
+    dest_cursor = destination_connection.cursor()
 
     last_loaded_ts = (
         get_latest_run_setting(dest_cursor, destination_table, "last_loaded_ts")
@@ -83,11 +85,47 @@ def load_from_mongo(
     collection = dbs.get_collection(source_collection).find(
         filter=filter, sort=sort, batch_size=100
     )
+    separate_object_id = lambda object: [
+        str(object["_id"]),
+        object["update_ts"],
+        json_util.dumps(object),
+    ]
+    modified_collection = map(separate_object_id, collection)
 
     # Сохраняем данные в Postgres
     push_to_postgres(
-        iterable=collection, cursor=dest_cursor, table=destination_table
+        iterable=modified_collection,
+        cursor=dest_cursor,
+        table=destination_table,
+        fields=["object_id", "update_ts", "object_value"],
     )
+
+    # Сохраняем последний записанный update_ts в таблицу stg.srv_wf_settings.
+    dest_cursor.execute(
+        f"""
+        select 
+            update_ts 
+        from {destination_table}
+        order by update_ts desc
+        limit 1;
+    """
+    )
+    last_loaded_datetime = dest_cursor.fetchone()[0]
+    new_last_loaded_ts = datetime.timestamp(last_loaded_datetime)
+
+    if new_last_loaded_ts > last_loaded_ts:
+        last_run_settings = {"last_loaded_ts": new_last_loaded_ts}
+        dest_cursor.execute(
+            f"""
+            insert 
+                into stg.srv_wf_settings 
+                    (workflow_key, workflow_settings)
+                values 
+                    ('{destination_table}', '{json.dumps(last_run_settings)}');
+        """
+        )
+
+        destination_connection.commit()
 
 
 def replicate_postgres_table(
@@ -138,7 +176,7 @@ def load_events_table(source_connection, destination_connection):
         iterable=src_cursor, cursor=dest_cursor, table="stg.bonussystem_events"
     )
 
-    # 4. Сохранили последний записанный id в таблицу stg.srv_etl_settings.
+    # 4. Сохранили последний записанный id в таблицу stg.srv_wf_settings.
     dest_cursor.execute(
         """
         select 
@@ -155,8 +193,8 @@ def load_events_table(source_connection, destination_connection):
         dest_cursor.execute(
             f"""
             insert 
-                into stg.srv_etl_settings 
-                    (elt_workflow_key, elt_workflow_settings)
+                into stg.srv_wf_settings 
+                    (workflow_key, workflow_settings)
                 values 
                     ('stg.bonussystem_events', '{json.dumps(last_run_settings)}');
         """
@@ -172,7 +210,7 @@ mongo_connection = MongoConnect(
     cert_path=Variable.get("MONGO_DB_CERTIFICATE_PATH"),
     user=Variable.get("MONGO_DB_USER"),
     pw=Variable.get("MONGO_DB_PASSWORD"),
-    hosts=Variable.get("MONGO_DB_HOSTS"),
+    hosts=[Variable.get("MONGO_DB_HOSTS")],
     rs=Variable.get("MONGO_DB_REPLICA_SET"),
     auth_db=Variable.get("MONGO_DB_DATABASE_NAME"),
     main_db=Variable.get("MONGO_DB_DATABASE_NAME"),
@@ -205,7 +243,7 @@ dag_params = {
 with DAG(**dag_params) as dag:
     start = DummyOperator(task_id="start")
 
-    with TaskGroup(group_id="stg_layer") as stg_layer:
+    with TaskGroup(group_id="staging") as staging:
         PythonOperator(
             task_id="bonussystem_ranks",
             python_callable=replicate_postgres_table,
@@ -244,43 +282,44 @@ with DAG(**dag_params) as dag:
             },
         )
 
-        # PythonOperator(
-        #     task_id="ordersystem_orders",
-        #     python_callable=load_from_mongo,
-        #     op_kwargs={
-        #         "source_connection": mongo_connection,
-        #         "source_collection": "",
-        #         "destination_connection": dwh_connection,
-        #         "destination_table": "stg.ordersystem_orders",
-        #     },
-        # )
+        PythonOperator(
+            task_id="ordersystem_orders",
+            python_callable=load_from_mongo,
+            op_kwargs={
+                "source_connection": mongo_connection,
+                "source_collection": "orders",
+                "destination_connection": dwh_connection,
+                "destination_table": "stg.ordersystem_orders",
+            },
+        )
 
-        # PythonOperator(
-        #     task_id="ordersystem_restaurants",
-        #     python_callable=load_from_mongo,
-        #     op_kwargs={
-        #         "source_connection": mongo_connection,
-        #         "source_collection": "",
-        #         "destination_connection": dwh_connection,
-        #         "destination_table": "stg.ordersystem_restaurants",
-        #     },
-        # )
+        PythonOperator(
+            task_id="ordersystem_restaurants",
+            python_callable=load_from_mongo,
+            op_kwargs={
+                "source_connection": mongo_connection,
+                "source_collection": "restaurants",
+                "destination_connection": dwh_connection,
+                "destination_table": "stg.ordersystem_restaurants",
+            },
+        )
 
-        # PythonOperator(
-        #     task_id="ordersystem_users",
-        #     python_callable=load_from_mongo,
-        #     op_kwargs={
-        #         "source_connection": mongo_connection,
-        #         "source_collection": "",
-        #         "destination_connection": dwh_connection,
-        #         "destination_table": "stg.ordersystem_users",
-        #     },
-        # )
+        PythonOperator(
+            task_id="ordersystem_users",
+            python_callable=load_from_mongo,
+            op_kwargs={
+                "source_connection": mongo_connection,
+                "source_collection": "users",
+                "destination_connection": dwh_connection,
+                "destination_table": "stg.ordersystem_users",
+            },
+        )
 
     end = DummyOperator(task_id="end")
 
-    start >> stg_layer >> end
+    start >> staging >> end
 
 # 4.5.2: Двигайтесь дальше! Ваш код: WHBkgRkvLo
 # 4.5.3: Двигайтесь дальше! Ваш код: lgkXY8KtCn
 # 4.5.5: Двигайтесь дальше! Ваш код: mgXgcqQzFv
+# 4.6.2: Двигайтесь дальше! Ваш код: k2Hetyy0nu
