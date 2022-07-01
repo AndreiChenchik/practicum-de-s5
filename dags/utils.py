@@ -1,0 +1,77 @@
+import json
+
+import psycopg2
+from bson import json_util
+
+
+def execute_one_batch(cursor, sqls, batch):
+    for sql in sqls:
+        psycopg2.extras.execute_values(cursor, sql, batch)
+
+
+def execute_by_batch(iterable, cursor, sqls):
+    batch_size = 200
+    data_batch = []
+
+    for data in iterable:
+        data_batch.append(data)
+
+        if len(data_batch) >= batch_size:
+            execute_one_batch(cursor, sqls, data_batch)
+            data_batch = []
+
+    execute_one_batch(cursor, sqls, data_batch)
+
+
+def fetch_wf_param(cursor, layer, db, param, default=None):
+    cursor.execute(
+        f"""
+        select 
+            workflow_settings 
+        from {layer}.srv_wf_settings
+        where workflow_key = '{layer}.{db}'
+        order by id desc
+        limit 1;
+    """
+    )
+
+    latest_run = cursor.fetchone()
+
+    try:
+        latest_settings = json.loads(latest_run[0])
+        value = latest_settings[param]
+    except:
+        value = default
+
+    return value
+
+
+def update_wf_settings(cursor, layer, db, param, value):
+    current_value = fetch_wf_param(cursor, layer, db, param)
+
+    if current_value is None or value > current_value:
+        settings = {param: value}
+
+        cursor.execute(
+            f"""
+            insert into {layer}.srv_wf_settings 
+                (workflow_key, workflow_settings)
+            values 
+                ('{layer}.{db}', '{json.dumps(settings)}');
+        """
+        )
+
+        return True
+
+
+def unpack_bson_object(object_value, fields):
+    object = json_util.loads(object_value)
+    data = [object[field] for field in fields]
+    return data
+
+
+def transform_bson_row(item, fields):
+    id = item[0]
+    update_ts = item[1].replace(microsecond=0)
+    fields = unpack_bson_object(item[2], fields)
+    return [id, update_ts] + fields
