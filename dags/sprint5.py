@@ -40,7 +40,7 @@ def sprint5():
         @task
         def bonussystem_ranks():
             columns = ["id", "name", "bonus_percent", "min_payment_threshold"]
-            stg.bonussystem_simple(
+            stg.extract_bonussystem_simple(
                 source_hook=dwh_hook,
                 destintaion_conn=db_conn,
                 from_table="ranks",
@@ -51,7 +51,7 @@ def sprint5():
         @task
         def bonussystem_users():
             columns = ["id", "order_user_id"]
-            stg.bonussystem_simple(
+            stg.extract_bonussystem_simple(
                 source_hook=dwh_hook,
                 destintaion_conn=db_conn,
                 from_table="users",
@@ -62,7 +62,7 @@ def sprint5():
         @task
         def ordersystem_restaurants():
             client = mongo_connection.client()
-            stg.ordersystem(
+            stg.extract_ordersystem(
                 source_client=client,
                 destination_conn=dwh_conn,
                 from_collection="restaurants",
@@ -72,7 +72,7 @@ def sprint5():
         @task
         def ordersystem_users():
             client = mongo_connection.client()
-            stg.ordersystem(
+            stg.extract_ordersystem(
                 source_client=client,
                 destination_conn=dwh_conn,
                 from_collection="users",
@@ -82,7 +82,7 @@ def sprint5():
         @task
         def ordersystem_orders():
             client = mongo_connection.client()
-            stg.ordersystem(
+            stg.extract_ordersystem(
                 source_client=client,
                 destination_conn=dwh_conn,
                 from_collection="orders",
@@ -91,7 +91,7 @@ def sprint5():
 
         @task
         def bonussystem_events():
-            stg.bonussystem_events(
+            stg.extract_bonussystem_events(
                 source_conn=db_conn, destination_conn=dwh_conn
             )
 
@@ -106,7 +106,7 @@ def sprint5():
 
         @task
         def dm_restaurants():
-            dds.dm_with_scd2(
+            dds.transform_dm_with_scd2(
                 conn=dwh_conn,
                 source_table="stg.ordersystem_restaurants",
                 object_fields=["name"],

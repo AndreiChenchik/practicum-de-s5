@@ -1,7 +1,7 @@
 from utils import execute_by_batch, transform_bson_row
 
 
-def dm_with_scd2(
+def transform_dm_with_scd2(
     conn,
     source_table,
     object_fields,

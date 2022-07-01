@@ -4,7 +4,7 @@ from mongo import get_collection, extract_rows
 from utils import fetch_wf_param, update_wf_settings, execute_by_batch
 
 
-def bonussystem_simple(
+def extract_bonussystem_simple(
     destintaion_conn, source_hook, from_table, to_table, columns
 ):
     cursor = destintaion_conn.cursor()
@@ -22,7 +22,7 @@ def bonussystem_simple(
     )
 
 
-def bonussystem_events(source_conn, destination_conn):
+def extract_bonussystem_events(source_conn, destination_conn):
     dest_cur = destination_conn.cursor()
     src_cur = source_conn.cursor()
 
@@ -51,7 +51,9 @@ def bonussystem_events(source_conn, destination_conn):
         destination_conn.commit()
 
 
-def ordersystem(source_client, destination_conn, from_collection, to_table):
+def extract_ordersystem(
+    source_client, destination_conn, from_collection, to_table
+):
     cur = destination_conn.cursor()
 
     # Previous run settings
