@@ -115,7 +115,12 @@ def sprint5():
                 destination_table="dds.dm_restaurants",
             )
 
+        @task
+        def dm_timestamps():
+            dds.transform_dm_timestamps(conn=dwh_conn)
+
         dm_restaurants()
+        dm_timestamps()
 
     end = DummyOperator(task_id="end")
 

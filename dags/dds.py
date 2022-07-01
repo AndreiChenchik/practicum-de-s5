@@ -1,4 +1,33 @@
-from utils import execute_by_batch, transform_bson_row
+from utils import execute_by_batch, extract_fields_from_bson
+
+
+def get_data(cursor, source_table, object_fields):
+    # Get the data
+    sql = f"""
+        select object_id, update_ts, object_value from {source_table}
+    """
+    cursor.execute(sql)
+
+    # Prepare the data
+    unpack_object = lambda item: [
+        item[0],
+        item[1].replace(microsecond=0),
+    ] + extract_fields_from_bson(item[3], object_fields)
+
+    unpacked_data = map(unpack_object, cursor)
+
+    return unpacked_data
+
+
+def transform_dm_timestamps(conn):
+    cursor = conn.cursor()
+
+    source_table = "stg.ordersystem_orders"
+    object_fields = ["date", "final_status"]
+    data = get_data(cursor, source_table, object_fields, filters)
+
+    filters = lambda item: item[3] in ["CANCELLED", "CLOSED"]
+    data = filter(filters, data)
 
 
 def transform_dm_with_scd2(
@@ -9,18 +38,10 @@ def transform_dm_with_scd2(
     destination_id,
     destination_columns,
 ):
-    # Get the data
     cursor = conn.cursor()
-    sql = f"""
-        select object_id, update_ts, object_value from {source_table}
-    """
-    cursor.execute(sql)
+    data = get_data(cursor, source_table, object_fields)
 
-    # Prepare the data
-    unpack_object = lambda item: transform_bson_row(item, object_fields)
-    unpacked_data = map(unpack_object, cursor)
-
-    # Load the data with SCD2 via multiple SQL requests
+    # Transform the data with SCD2 via multiple SQL requests
     sqls = []
     # # Create brand new items
     new_items_sql = f"""
@@ -126,5 +147,5 @@ def transform_dm_with_scd2(
     """
     sqls.append(retire_items_sql)
 
-    execute_by_batch(iterable=unpacked_data, cursor=cursor, sqls=sqls)
+    execute_by_batch(iterable=data, cursor=cursor, sqls=sqls)
     conn.commit()

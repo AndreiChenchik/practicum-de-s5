@@ -64,14 +64,7 @@ def update_wf_settings(cursor, layer, db, param, value):
         return True
 
 
-def unpack_bson_object(object_value, fields):
-    object = json_util.loads(object_value)
-    data = [object[field] for field in fields]
-    return data
-
-
-def transform_bson_row(item, fields):
-    id = item[0]
-    update_ts = item[1].replace(microsecond=0)
-    fields = unpack_bson_object(item[2], fields)
-    return [id, update_ts] + fields
+def extract_fields_from_bson(bson, fields):
+    object = json_util.loads(bson)
+    fields = [object[field] for field in fields]
+    return fields
