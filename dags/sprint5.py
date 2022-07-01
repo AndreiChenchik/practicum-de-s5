@@ -106,13 +106,13 @@ def sprint5():
 
         @task
         def dm_restaurants():
-            dds.push_bson_object_to_scd2(
+            dds.dm_with_scd2(
                 conn=dwh_conn,
-                src_table="stg.ordersystem_restaurants",
-                src_fields=["name"],
-                dest_columns=["restaurant_name"],
-                dest_id="restaurant_id",
-                dest_table="dds.dm_restaurants",
+                source_table="stg.ordersystem_restaurants",
+                object_fields=["name"],
+                destination_columns=["restaurant_name"],
+                destination_id="restaurant_id",
+                destination_table="dds.dm_restaurants",
             )
 
         dm_restaurants()
