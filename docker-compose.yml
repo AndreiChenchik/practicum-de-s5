@@ -18,7 +18,8 @@ services:
       - ZOOKEEPER_CONNECT=zookeeper:2181
       
   de-pg-cr-af:
-    image: sindb/de-pg-cr-af:latest
+    # image: sindb/de-pg-cr-af:latest
+    build: .
     ports:
       - 3000:3000
       - 3002:3002

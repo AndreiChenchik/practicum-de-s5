@@ -93,15 +93,16 @@ def prepare_sdc2_sql(data_cte_sql, table, id, columns):
     return sqls
 
 
-def transform_dm_timestamps(conn):
-    cursor = conn.cursor()
+def transform_dm_timestamps(conn_hook):
+    connection = conn_hook.get_conn()
+    cursor = connection.cursor()
 
     source_table = "stg.ordersystem_orders"
     object_fields = ["date", "final_status"]
     data = get_data_from_bsod_table(cursor, source_table, object_fields)
 
-    filter_by_status = lambda item: item[3] in ["CANCELLED", "CLOSED"]
-    data = filter(filter_by_status, data)
+    # filter_by_status = lambda item: item[3] in ["CANCELLED", "CLOSED"]
+    # data = filter(filter_by_status, data)
 
     extract_date_details = lambda item: [
         item[2].replace(microsecond=0),  # ts
@@ -125,7 +126,7 @@ def transform_dm_timestamps(conn):
             from data
     """
     execute_by_batch(iterable=data, cursor=cursor, sqls=[sql])
-    conn.commit()
+    connection.commit()
 
 
 def transform_dm_restaurants(conn):
@@ -238,6 +239,72 @@ def transform_dm_orders(conn):
                 on dmu.user_id = d.ukey
             left join dds.dm_timestamps dmt
                 on dmt.ts = d.timestamp 
+    """
+    execute_by_batch(iterable=data, cursor=cursor, sqls=[sql])
+    conn.commit()
+
+
+def extract_order_items(data):
+    for item in data:
+        order_key = item[0]
+        update_ts = item[1]
+        total_sum = item[3]
+        bonus_payment = item[4]
+        bonus_grant = item[5]
+        cart = item[2]
+
+        for product in cart:
+            product_key = str(product["id"])
+            price = product["price"]
+            count = product["quantity"]
+
+            yield [
+                order_key,
+                update_ts,
+                total_sum,
+                bonus_payment,
+                bonus_grant,
+                product_key,
+                price,
+                count,
+            ]
+
+
+def transform_fct_product_sales(conn):
+    cursor = conn.cursor()
+
+    source_table = "stg.ordersystem_orders"
+    object_fields = [
+        "order_items",
+        "cost",
+        "payment",
+        "bonus_payment",
+        "bonus_grant",
+    ]
+    data = get_data_from_bsod_table(cursor, source_table, object_fields)
+
+    data = extract_order_items(data)
+
+    sql = f"""
+        with data (
+            order_key, update_ts, total_sum, bonus_payment, bonus_grant,
+            product_key, price, count
+        ) as (select * from (values %s) as external_values)
+
+        insert 
+            into dds.fct_product_sales (
+                order_id, total_sum, bonus_payment, bonus_grant, 
+                product_id, price, count
+            )
+            select 
+                dmo.id, total_sum, bonus_payment, bonus_grant,
+                dmp.id, price, count
+            from data d
+            left join dds.dm_orders dmo
+                on dmr.order_key = d.order_key
+            left join dds.dm_products dmp
+                on dmp.product_id = d.product_key
+                    and dmr.active_to = '{future_date}'
     """
     execute_by_batch(iterable=data, cursor=cursor, sqls=[sql])
     conn.commit()

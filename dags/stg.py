@@ -44,10 +44,11 @@ def extract_bonussystem_events(source_conn, destination_conn):
     execute_by_batch(iterable=src_cur, cursor=dest_cur, sqls=[sql])
 
     # Check latest saved id
-    last_id = dest_cur.execute(
+    dest_cur.execute(
         """ select id from stg.bonussystem_events
-        order by id desc limit 1; """
-    ).fetchone()[0]
+            order by id desc limit 1; """
+    )
+    last_id = dest_cur.fetchone()[0]
 
     # Save if worth it
     if update_wf_settings(

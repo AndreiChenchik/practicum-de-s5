@@ -29,7 +29,7 @@ def fetch_wf_param(cursor, layer, db, param, default=None):
         select 
             workflow_settings 
         from {layer}.srv_wf_settings
-        where workflow_key = '{layer}.{db}'
+        where workflow_key = '{db}'
         order by id desc
         limit 1;
     """
@@ -57,7 +57,7 @@ def update_wf_settings(cursor, layer, db, param, value):
             insert into {layer}.srv_wf_settings 
                 (workflow_key, workflow_settings)
             values 
-                ('{layer}.{db}', '{json.dumps(settings)}');
+                ('{db}', '{json.dumps(settings)}');
         """
         )
 
