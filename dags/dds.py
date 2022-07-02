@@ -1,8 +1,4 @@
-from utils import (
-    execute_by_batch,
-    extract_fields_from_bson,
-    filter_object_fields,
-)
+from utils import execute_by_batch, extract_fields_from_bson
 
 
 def get_data_from_bsod_table(cursor, source_table, object_fields):
@@ -16,7 +12,7 @@ def get_data_from_bsod_table(cursor, source_table, object_fields):
     unpack_object = lambda item: [
         item[0],
         item[1].replace(microsecond=0),
-    ] + extract_fields_from_bson(item[3], object_fields)
+    ] + extract_fields_from_bson(item[2], object_fields)
 
     unpacked_data = map(unpack_object, cursor)
 
@@ -28,33 +24,29 @@ def transform_dm_timestamps(conn):
 
     source_table = "stg.ordersystem_orders"
     object_fields = ["date", "final_status"]
-    data = get_data_from_bsod_table(
-        cursor, source_table, object_fields, filter_by_status
-    )
+    data = get_data_from_bsod_table(cursor, source_table, object_fields)
 
     filter_by_status = lambda item: item[3] in ["CANCELLED", "CLOSED"]
     data = filter(filter_by_status, data)
 
-    filter_fields = lambda item: filter_object_fields(item, ["date"])
-    data = map(filter_fields, data)
-
     extract_date_details = lambda item: [
-        item[0],  # ts
-        item[0].date(),  # date
-        item[0].time(),  # time
-        item[0].year,  # year
-        item[0].month,  # month
-        item[0].day,  # day
+        item[2],  # ts
+        item[2].date(),  # date
+        item[2].time(),  # time
+        item[2].year,  # year
+        item[2].month,  # month
+        item[2].day,  # day
     ]
     data = map(extract_date_details, data)
 
     sql = """
-        isert 
+        insert 
             into dds.dm_timestamps
                 (ts, date, time, year, month, day)
             values %s
     """
     execute_by_batch(iterable=data, cursor=cursor, sqls=[sql])
+    conn.commit()
 
 
 def transform_dm_with_scd2(

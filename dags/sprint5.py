@@ -28,8 +28,8 @@ mongo_connection = MongoConnect(
 
 
 @dag(
-    schedule_interval="0/15 * * * *",
-    start_date=datetime(2020, 12, 23),
+    schedule_interval="@daily",
+    start_date=datetime(2022, 7, 1),
     catchup=False,
 )
 def sprint5():
@@ -95,9 +95,9 @@ def sprint5():
                 source_conn=db_conn, destination_conn=dwh_conn
             )
 
-        bonussystem_events()
-        bonussystem_ranks()
-        bonussystem_users()
+        # bonussystem_events()
+        # bonussystem_ranks()
+        # bonussystem_users()
         ordersystem_orders()
         ordersystem_restaurants()
         ordersystem_users()
@@ -134,3 +134,4 @@ dag = sprint5()
 # 4.5.5: Двигайтесь дальше! Ваш код: mgXgcqQzFv
 # 4.6.2: Двигайтесь дальше! Ваш код: k2Hetyy0nu
 # 4.7.2: Двигайтесь дальше! Ваш код: mgXgcqQzFv
+# 4.7.3: Двигайтесь дальше! Ваш код: WXcbW1NLh9
