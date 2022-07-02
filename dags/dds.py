@@ -93,6 +93,7 @@ def prepare_sdc2_sql(data_cte_sql, table, id, columns):
     return sqls
 
 
+
 def extract_date_details(data):
     for item in data:
         if item[3] not in ["CANCELLED", "CLOSED"]:
@@ -130,6 +131,7 @@ def transform_dm_timestamps(conn_hook):
             from data
     """
 
+
     dest_cur = conn.cursor()
     execute_by_batch(data=data, cursor=dest_cur, sqls=[sql])
     conn.commit()
@@ -143,6 +145,7 @@ def transform_dm_restaurants(conn_hook):
     object_fields = ["name"]
     data = get_data_from_bsod_table(src_cursor, source_table, object_fields)
 
+
     table = "dds.dm_restaurants"
     id = "restaurant_id"
     columns = ["restaurant_name"]
@@ -155,8 +158,10 @@ def transform_dm_restaurants(conn_hook):
 
     sqls = prepare_sdc2_sql(data_cte_sql, table, id, columns)
 
+
     dest_cursor = conn.cursor()
     execute_by_batch(data=data, cursor=dest_cursor, sqls=sqls)
+
     conn.commit()
 
 
@@ -175,6 +180,7 @@ def extract_menu(data):
             yield [id, update_ts, restaurant_id, name, price]
 
 
+
 def transform_dm_products(conn_hook):
     conn = conn_hook.get_conn()
     src_cursor = conn.cursor()
@@ -182,6 +188,7 @@ def transform_dm_products(conn_hook):
     source_table = "stg.ordersystem_restaurants"
     object_fields = ["menu"]
     data = get_data_from_bsod_table(src_cursor, source_table, object_fields)
+
 
     data = extract_menu(data)
 
@@ -209,6 +216,7 @@ def transform_dm_products(conn_hook):
 
     sqls = prepare_sdc2_sql(data_cte_sql, table, id, columns)
 
+
     dest_cursor = conn.cursor()
     execute_by_batch(data=data, cursor=dest_cursor, sqls=sqls)
     conn.commit()
@@ -221,6 +229,7 @@ def transform_dm_orders(conn_hook):
     source_table = "stg.ordersystem_orders"
     object_fields = ["date", "final_status", "user", "restaurant"]
     data = get_data_from_bsod_table(src_cursor, source_table, object_fields)
+
 
     extract_order_info = lambda item: [
         item[0],  # order_key
@@ -252,8 +261,10 @@ def transform_dm_orders(conn_hook):
                 on dmt.ts = d.timestamp 
     """
 
+
     dest_cursor = conn.cursor()
     execute_by_batch(data=data, cursor=dest_cursor, sqls=[sql])
+
     conn.commit()
 
 
@@ -261,11 +272,13 @@ def extract_order_items(data):
     for item in data:
         order_key = item[0]
         update_ts = item[1]
+
         total_sum = item[2]
         bonus_payment = item[3]
         bonus_grant = item[4]
 
         cart = item[5]
+
         for product in cart:
             product_key = str(product["id"])
             price = product["price"]
@@ -283,6 +296,7 @@ def extract_order_items(data):
             ]
 
 
+
 def transform_fct_product_sales(conn_hook):
     conn = conn_hook.get_conn()
     src_cursor = conn.cursor()
@@ -295,6 +309,7 @@ def transform_fct_product_sales(conn_hook):
         "order_items",
     ]
     data = get_data_from_bsod_table(src_cursor, source_table, object_fields)
+
 
     data = extract_order_items(data)
 
@@ -322,4 +337,5 @@ def transform_fct_product_sales(conn_hook):
 
     dest_cursor = conn.cursor()
     execute_by_batch(data=data, cursor=dest_cursor, sqls=[sql])
+
     conn.commit()

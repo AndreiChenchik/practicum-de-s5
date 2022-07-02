@@ -23,6 +23,7 @@ def execute_by_batch(data, cursor, sqls):
     execute_one_batch(cursor, sqls, batch)
 
 
+
 def fetch_wf_param(cursor, layer, db, param, default=None):
     cursor.execute(
         f"""

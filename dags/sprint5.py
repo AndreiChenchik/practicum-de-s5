@@ -12,6 +12,7 @@ import stg
 import dds
 import cdm
 
+
 remote_pg = PostgresHook(postgres_conn_id="PG_ORIGIN_BONUS_SYSTEM_CONNECTION")
 db_conn = remote_pg.get_conn()
 
@@ -125,6 +126,7 @@ def sprint5():
         @task
         def fct_product_sales():
             dds.transform_fct_product_sales(conn_hook=dwh)
+          
 
         dm_restaurants = dm_restaurants()
         dm_timestamps = dm_timestamps()
@@ -147,6 +149,7 @@ def sprint5():
     end = DummyOperator(task_id="end")
 
     start >> staging >> detail_store >> data_marts >> end
+
 
 
 dag = sprint5()
