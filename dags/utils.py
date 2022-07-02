@@ -9,18 +9,19 @@ def execute_one_batch(cursor, sqls, batch):
         psycopg2.extras.execute_values(cursor, sql, batch)
 
 
-def execute_by_batch(iterable, cursor, sqls):
-    batch_size = 200
-    data_batch = []
+def execute_by_batch(data, cursor, sqls):
+    max_batch_size = 200
+    batch = []
 
-    for data in iterable:
-        data_batch.append(data)
+    for item in data:
+        batch.append(item)
 
-        if len(data_batch) >= batch_size:
-            execute_one_batch(cursor, sqls, data_batch)
-            data_batch = []
+        if len(batch) >= max_batch_size:
+            execute_one_batch(cursor, sqls, batch)
+            batch = []
 
-    execute_one_batch(cursor, sqls, data_batch)
+    execute_one_batch(cursor, sqls, batch)
+
 
 
 def fetch_wf_param(cursor, layer, db, param, default=None):
