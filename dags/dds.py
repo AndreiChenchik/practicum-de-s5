@@ -1,7 +1,11 @@
-from utils import execute_by_batch, extract_fields_from_bson
+from utils import (
+    execute_by_batch,
+    extract_fields_from_bson,
+    filter_object_fields,
+)
 
 
-def get_data(cursor, source_table, object_fields):
+def get_data_from_bsod_table(cursor, source_table, object_fields):
     # Get the data
     sql = f"""
         select object_id, update_ts, object_value from {source_table}
@@ -24,10 +28,33 @@ def transform_dm_timestamps(conn):
 
     source_table = "stg.ordersystem_orders"
     object_fields = ["date", "final_status"]
-    data = get_data(cursor, source_table, object_fields, filters)
+    data = get_data_from_bsod_table(
+        cursor, source_table, object_fields, filter_by_status
+    )
 
-    filters = lambda item: item[3] in ["CANCELLED", "CLOSED"]
-    data = filter(filters, data)
+    filter_by_status = lambda item: item[3] in ["CANCELLED", "CLOSED"]
+    data = filter(filter_by_status, data)
+
+    filter_fields = lambda item: filter_object_fields(item, ["date"])
+    data = map(filter_fields, data)
+
+    extract_date_details = lambda item: [
+        item[0],  # ts
+        item[0].date(),  # date
+        item[0].time(),  # time
+        item[0].year,  # year
+        item[0].month,  # month
+        item[0].day,  # day
+    ]
+    data = map(extract_date_details, data)
+
+    sql = """
+        isert 
+            into dds.dm_timestamps
+                (ts, date, time, year, month, day)
+            values %s
+    """
+    execute_by_batch(iterable=data, cursor=cursor, sqls=[sql])
 
 
 def transform_dm_with_scd2(
@@ -39,7 +66,7 @@ def transform_dm_with_scd2(
     destination_columns,
 ):
     cursor = conn.cursor()
-    data = get_data(cursor, source_table, object_fields)
+    data = get_data_from_bsod_table(cursor, source_table, object_fields)
 
     # Transform the data with SCD2 via multiple SQL requests
     sqls = []

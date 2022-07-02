@@ -83,3 +83,7 @@ def create_bsod_row_from_object(object, fields):
     results.append(json)
 
     return results
+
+
+def filter_object_fields(object, fields):
+    return {k: v for k, v in object.items() if k in fields}
