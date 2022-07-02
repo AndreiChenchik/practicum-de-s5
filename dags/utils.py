@@ -68,3 +68,18 @@ def extract_fields_from_bson(bson, fields):
     object = json_util.loads(bson)
     fields = [object[field] for field in fields]
     return fields
+
+
+def create_bsod_row_from_object(object, fields):
+    results = []
+
+    id = str(object["_id"])
+    results.append(id)
+
+    fields = [object[field] for field in fields]
+    results += fields
+
+    json = json_util.dumps(object)
+    results.append(json)
+
+    return results

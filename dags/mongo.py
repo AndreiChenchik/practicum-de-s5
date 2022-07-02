@@ -47,24 +47,3 @@ def get_collection(client, collection, filter, sorted_by=None):
         filter=filter, sort=sort, batch_size=100
     )
     return collection
-
-
-def transform_object(object, fields):
-    results = []
-
-    id = str(object["_id"])
-    results.append(id)
-
-    fields = [object[field] for field in fields]
-    results += fields
-
-    json = json_util.dumps(object)
-    results.append(json)
-
-    return results
-
-
-def extract_rows(iterable, fields):
-    transform = lambda object: transform_object(object, fields)
-    rows = map(transform, iterable)
-    return rows

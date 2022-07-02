@@ -1,7 +1,12 @@
 from datetime import datetime
 
-from mongo import get_collection, extract_rows
-from utils import fetch_wf_param, update_wf_settings, execute_by_batch
+from mongo import get_collection
+from utils import (
+    fetch_wf_param,
+    update_wf_settings,
+    execute_by_batch,
+    create_bsod_row_from_object,
+)
 
 
 def extract_bonussystem_simple(
@@ -64,7 +69,10 @@ def extract_ordersystem(
     objects = get_collection(
         source_client, from_collection, filter, "update_ts"
     )
-    rows = extract_rows(objects, ["update_ts"])
+    transform = lambda object: create_bsod_row_from_object(
+        object, ["update_ts"]
+    )
+    rows = map(transform, objects)
 
     # Save to new place
     sql = f"""
