@@ -106,21 +106,28 @@ def sprint5():
 
         @task
         def dm_restaurants():
-            dds.transform_dm_with_scd2(
-                conn=dwh_conn,
-                source_table="stg.ordersystem_restaurants",
-                object_fields=["name"],
-                destination_columns=["restaurant_name"],
-                destination_id="restaurant_id",
-                destination_table="dds.dm_restaurants",
-            )
+            dds.transform_dm_restaurants(conn=dwh_conn)
 
         @task
         def dm_timestamps():
             dds.transform_dm_timestamps(conn=dwh_conn)
 
-        dm_restaurants()
-        dm_timestamps()
+        @task
+        def dm_products():
+            dds.transform_dm_products(conn=dwh_conn)
+
+        @task
+        def dm_orders():
+            dds.transform_dm_orders(conn=dwh_conn)
+
+        dm_restaurants = dm_restaurants()
+        dm_timestamps = dm_timestamps()
+        dm_products = dm_products()
+        dm_orders = dm_orders()
+
+        dm_timestamps >> dm_orders
+        dm_restaurants >> dm_orders
+        dm_restaurants >> dm_products
 
     end = DummyOperator(task_id="end")
 
@@ -135,3 +142,5 @@ dag = sprint5()
 # 4.6.2: Двигайтесь дальше! Ваш код: k2Hetyy0nu
 # 4.7.2: Двигайтесь дальше! Ваш код: mgXgcqQzFv
 # 4.7.3: Двигайтесь дальше! Ваш код: WXcbW1NLh9
+# 4.7.4: Двигайтесь дальше! Ваш код: y7M8bxX1z9
+# 4.7.5: Двигайтесь дальше! Ваш код: 8i8NjzMWsa
