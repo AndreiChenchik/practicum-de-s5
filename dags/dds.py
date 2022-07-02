@@ -261,11 +261,11 @@ def extract_order_items(data):
     for item in data:
         order_key = item[0]
         update_ts = item[1]
-        total_sum = item[3]
-        bonus_payment = item[4]
-        bonus_grant = item[5]
-        cart = item[2]
+        total_sum = item[2]
+        bonus_payment = item[3]
+        bonus_grant = item[4]
 
+        cart = item[5]
         for product in cart:
             product_key = str(product["id"])
             price = product["price"]
@@ -289,11 +289,10 @@ def transform_fct_product_sales(conn_hook):
 
     source_table = "stg.ordersystem_orders"
     object_fields = [
-        "order_items",
-        "cost",
         "payment",
         "bonus_payment",
         "bonus_grant",
+        "order_items",
     ]
     data = get_data_from_bsod_table(src_cursor, source_table, object_fields)
 

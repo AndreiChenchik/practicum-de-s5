@@ -7,8 +7,10 @@ from airflow.operators.dummy_operator import DummyOperator
 from airflow.utils.task_group import TaskGroup
 
 from mongo import MongoConnect
+
 import stg
 import dds
+import cdm
 
 remote_pg = PostgresHook(postgres_conn_id="PG_ORIGIN_BONUS_SYSTEM_CONNECTION")
 db_conn = remote_pg.get_conn()
@@ -134,9 +136,17 @@ def sprint5():
         [dm_timestamps, dm_restaurants] >> dm_orders
         [dm_products, dm_orders] >> fct_product_sales
 
+    with TaskGroup(group_id="data_marts") as data_marts:
+
+        @task
+        def dm_settlement_report():
+            cdm.load_dm_settlement_report(conn_hook=dwh)
+
+        dm_settlement_report()
+
     end = DummyOperator(task_id="end")
 
-    start >> staging >> detail_store >> end
+    start >> staging >> detail_store >> data_marts >> end
 
 
 dag = sprint5()
@@ -150,3 +160,4 @@ dag = sprint5()
 # 4.7.4: Двигайтесь дальше! Ваш код: y7M8bxX1z9
 # 4.7.5: Двигайтесь дальше! Ваш код: 8i8NjzMWsa
 # 4.7.6: Двигайтесь дальше! Ваш код: jemju9gmX7
+# 4.8.1: Двигайтесь дальше! Ваш код: dUY4sNFuOZ
