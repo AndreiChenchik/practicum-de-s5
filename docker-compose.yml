@@ -18,7 +18,8 @@ services:
       - ZOOKEEPER_CONNECT=zookeeper:2181
       
   de-pg-cr-af:
-    image: sindb/de-pg-cr-af:latest
+    # image: sindb/de-pg-cr-af:latest
+    build: .
     ports:
       - 3000:3000
       - 3002:3002
@@ -26,6 +27,7 @@ services:
     volumes:
       - mydb:/var/lib/postgresql
       - mylessons:/lessons
+      - ./dags:/lessons/dags
       
   connect:
     image: quay.io/debezium/connect:1.9
