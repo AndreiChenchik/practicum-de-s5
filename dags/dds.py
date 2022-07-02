@@ -93,26 +93,30 @@ def prepare_sdc2_sql(data_cte_sql, table, id, columns):
     return sqls
 
 
+def extract_date_details(data):
+    for item in data:
+        if item[3] not in ["CANCELLED", "CLOSED"]:
+            continue
+
+        ts = item[2].replace(microsecond=0)
+        date = item[2].replace(microsecond=0).date()
+        time = item[2].replace(microsecond=0).time()
+        year = item[2].replace(microsecond=0).year
+        month = item[2].replace(microsecond=0).month
+        day = item[2].replace(microsecond=0).day
+
+        yield [ts, date, time, year, month, day]
+
+
 def transform_dm_timestamps(conn_hook):
-    connection = conn_hook.get_conn()
-    cursor = connection.cursor()
+    conn = conn_hook.get_conn()
+    src_cur = conn.cursor()
 
     source_table = "stg.ordersystem_orders"
     object_fields = ["date", "final_status"]
-    data = get_data_from_bsod_table(cursor, source_table, object_fields)
+    data = get_data_from_bsod_table(src_cur, source_table, object_fields)
 
-    # filter_by_status = lambda item: item[3] in ["CANCELLED", "CLOSED"]
-    # data = filter(filter_by_status, data)
-
-    extract_date_details = lambda item: [
-        item[2].replace(microsecond=0),  # ts
-        item[2].replace(microsecond=0).date(),  # date
-        item[2].replace(microsecond=0).time(),  # time
-        item[2].replace(microsecond=0).year,  # year
-        item[2].replace(microsecond=0).month,  # month
-        item[2].replace(microsecond=0).day,  # day
-    ]
-    data = map(extract_date_details, data)
+    data = extract_date_details(data)
 
     sql = """
         with
@@ -125,16 +129,19 @@ def transform_dm_timestamps(conn_hook):
             select distinct *
             from data
     """
-    execute_by_batch(iterable=data, cursor=cursor, sqls=[sql])
-    connection.commit()
+
+    dest_cur = conn.cursor()
+    execute_by_batch(data=data, cursor=dest_cur, sqls=[sql])
+    conn.commit()
 
 
-def transform_dm_restaurants(conn):
-    cursor = conn.cursor()
+def transform_dm_restaurants(conn_hook):
+    conn = conn_hook.get_conn()
+    src_cursor = conn.cursor()
 
     source_table = "stg.ordersystem_restaurants"
     object_fields = ["name"]
-    data = get_data_from_bsod_table(cursor, source_table, object_fields)
+    data = get_data_from_bsod_table(src_cursor, source_table, object_fields)
 
     table = "dds.dm_restaurants"
     id = "restaurant_id"
@@ -148,7 +155,8 @@ def transform_dm_restaurants(conn):
 
     sqls = prepare_sdc2_sql(data_cte_sql, table, id, columns)
 
-    execute_by_batch(iterable=data, cursor=cursor, sqls=sqls)
+    dest_cursor = conn.cursor()
+    execute_by_batch(data=data, cursor=dest_cursor, sqls=sqls)
     conn.commit()
 
 
@@ -167,12 +175,13 @@ def extract_menu(data):
             yield [id, update_ts, restaurant_id, name, price]
 
 
-def transform_dm_products(conn):
-    cursor = conn.cursor()
+def transform_dm_products(conn_hook):
+    conn = conn_hook.get_conn()
+    src_cursor = conn.cursor()
 
     source_table = "stg.ordersystem_restaurants"
     object_fields = ["menu"]
-    data = get_data_from_bsod_table(cursor, source_table, object_fields)
+    data = get_data_from_bsod_table(src_cursor, source_table, object_fields)
 
     data = extract_menu(data)
 
@@ -200,16 +209,18 @@ def transform_dm_products(conn):
 
     sqls = prepare_sdc2_sql(data_cte_sql, table, id, columns)
 
-    execute_by_batch(iterable=data, cursor=cursor, sqls=sqls)
+    dest_cursor = conn.cursor()
+    execute_by_batch(data=data, cursor=dest_cursor, sqls=sqls)
     conn.commit()
 
 
-def transform_dm_orders(conn):
-    cursor = conn.cursor()
+def transform_dm_orders(conn_hook):
+    conn = conn_hook.get_conn()
+    src_cursor = conn.cursor()
 
     source_table = "stg.ordersystem_orders"
     object_fields = ["date", "final_status", "user", "restaurant"]
-    data = get_data_from_bsod_table(cursor, source_table, object_fields)
+    data = get_data_from_bsod_table(src_cursor, source_table, object_fields)
 
     extract_order_info = lambda item: [
         item[0],  # order_key
@@ -240,7 +251,9 @@ def transform_dm_orders(conn):
             left join dds.dm_timestamps dmt
                 on dmt.ts = d.timestamp 
     """
-    execute_by_batch(iterable=data, cursor=cursor, sqls=[sql])
+
+    dest_cursor = conn.cursor()
+    execute_by_batch(data=data, cursor=dest_cursor, sqls=[sql])
     conn.commit()
 
 
@@ -270,8 +283,9 @@ def extract_order_items(data):
             ]
 
 
-def transform_fct_product_sales(conn):
-    cursor = conn.cursor()
+def transform_fct_product_sales(conn_hook):
+    conn = conn_hook.get_conn()
+    src_cursor = conn.cursor()
 
     source_table = "stg.ordersystem_orders"
     object_fields = [
@@ -281,7 +295,7 @@ def transform_fct_product_sales(conn):
         "bonus_payment",
         "bonus_grant",
     ]
-    data = get_data_from_bsod_table(cursor, source_table, object_fields)
+    data = get_data_from_bsod_table(src_cursor, source_table, object_fields)
 
     data = extract_order_items(data)
 
@@ -301,10 +315,12 @@ def transform_fct_product_sales(conn):
                 dmp.id, price, count
             from data d
             left join dds.dm_orders dmo
-                on dmr.order_key = d.order_key
+                on dmo.order_key = d.order_key
             left join dds.dm_products dmp
                 on dmp.product_id = d.product_key
-                    and dmr.active_to = '{future_date}'
+                    and dmp.active_to = '{future_date}'
     """
-    execute_by_batch(iterable=data, cursor=cursor, sqls=[sql])
+
+    dest_cursor = conn.cursor()
+    execute_by_batch(data=data, cursor=dest_cursor, sqls=[sql])
     conn.commit()

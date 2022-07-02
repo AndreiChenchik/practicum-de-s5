@@ -106,7 +106,7 @@ def sprint5():
 
         @task
         def dm_restaurants():
-            dds.transform_dm_restaurants(conn=dwh_conn)
+            dds.transform_dm_restaurants(conn_hook=dwh)
 
         @task
         def dm_timestamps():
@@ -114,15 +114,15 @@ def sprint5():
 
         @task
         def dm_products():
-            dds.transform_dm_products(conn=dwh_conn)
+            dds.transform_dm_products(conn_hook=dwh)
 
         @task
         def dm_orders():
-            dds.transform_dm_orders(conn=dwh_conn)
+            dds.transform_dm_orders(conn_hook=dwh)
 
         @task
         def fct_product_sales():
-            dds.transform_fct_product_sales(conn=dwh_conn)
+            dds.transform_fct_product_sales(conn_hook=dwh)
 
         dm_restaurants = dm_restaurants()
         dm_timestamps = dm_timestamps()
@@ -149,3 +149,4 @@ dag = sprint5()
 # 4.7.3: Двигайтесь дальше! Ваш код: WXcbW1NLh9
 # 4.7.4: Двигайтесь дальше! Ваш код: y7M8bxX1z9
 # 4.7.5: Двигайтесь дальше! Ваш код: 8i8NjzMWsa
+# 4.7.6: Двигайтесь дальше! Ваш код: jemju9gmX7

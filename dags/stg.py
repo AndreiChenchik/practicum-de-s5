@@ -41,7 +41,7 @@ def extract_bonussystem_events(source_conn, destination_conn):
 
     # Save to new place
     sql = "insert into stg.bonussystem_events values %s"
-    execute_by_batch(iterable=src_cur, cursor=dest_cur, sqls=[sql])
+    execute_by_batch(data=src_cur, cursor=dest_cur, sqls=[sql])
 
     # Check latest saved id
     dest_cur.execute(
@@ -81,7 +81,7 @@ def extract_ordersystem(
             (object_id, update_ts, object_value) 
         values %s
     """
-    execute_by_batch(iterable=rows, cursor=cur, sqls=[sql])
+    execute_by_batch(data=rows, cursor=cur, sqls=[sql])
 
     # Check latest saved id
     sql = f"""
