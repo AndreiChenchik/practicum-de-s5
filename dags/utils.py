@@ -1,42 +1,41 @@
 import json
+from typing import Dict, Iterable, List
 
-import psycopg2
+import psycopg2.extras
 from bson import json_util
 
 
-def execute_one_batch(cursor, sqls, batch):
-    for sql in sqls:
-        psycopg2.extras.execute_values(cursor, sql, batch)
-
-
-def execute_by_batch(data, cursor, sqls):
+def execute_by_batch(*, cur, sqls: List[str], data: Iterable):
     max_batch_size = 200
-    batch = []
+    batch: list = []
+
+    execute_values = lambda sql: psycopg2.extras.execute_values(cur, sql, batch)
 
     for item in data:
         batch.append(item)
 
         if len(batch) >= max_batch_size:
-            execute_one_batch(cursor, sqls, batch)
+            map(execute_values, sqls)
             batch = []
 
-    execute_one_batch(cursor, sqls, batch)
+    map(execute_values, sqls)
 
 
-
-def fetch_wf_param(cursor, layer, db, param, default=None):
-    cursor.execute(
+def fetch_workflow_settings(
+    *, cur, layer: str, table: str, param: str, default=None
+):
+    cur.execute(
         f"""
         select 
             workflow_settings 
         from {layer}.srv_wf_settings
-        where workflow_key = '{db}'
+        where workflow_key = '{table}'
         order by id desc
         limit 1;
     """
     )
 
-    latest_run = cursor.fetchone()
+    latest_run = cur.fetchone()
 
     try:
         latest_settings = json.loads(latest_run[0])
@@ -47,31 +46,33 @@ def fetch_wf_param(cursor, layer, db, param, default=None):
     return value
 
 
-def update_wf_settings(cursor, layer, db, param, value):
-    current_value = fetch_wf_param(cursor, layer, db, param)
+def update_workflow_settings(*, cur, layer: str, table: str, param: str, value):
+    current_value = fetch_workflow_settings(
+        cur=cur, layer=layer, table=table, param=param
+    )
 
     if current_value is None or value > current_value:
         settings = {param: value}
 
-        cursor.execute(
+        cur.execute(
             f"""
             insert into {layer}.srv_wf_settings 
                 (workflow_key, workflow_settings)
             values 
-                ('{db}', '{json.dumps(settings)}');
+                ('{table}', '{json.dumps(settings)}');
         """
         )
 
         return True
 
 
-def extract_fields_from_bson(bson, fields):
+def extract_fields_from_bson(*, bson: str, fields: List[str]):
     object = json_util.loads(bson)
     fields = [object[field] for field in fields]
     return fields
 
 
-def create_bsod_row_from_object(object, fields):
+def create_bsod_row_from_object(*, object: Dict, fields: List[str]):
     results = []
 
     id = str(object["_id"])
