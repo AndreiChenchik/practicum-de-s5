@@ -7,3 +7,5 @@ select
     is_nullable
 from information_schema.columns
 where table_schema = 'public';
+
+-- Двигайтесь дальше! Ваш код: HL54o2dXuo

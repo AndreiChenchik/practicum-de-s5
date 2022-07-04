@@ -14,11 +14,7 @@ import cdm
 
 
 remote_pg = PostgresHook(postgres_conn_id="PG_ORIGIN_BONUS_SYSTEM_CONNECTION")
-db_conn = remote_pg.get_conn()
-
 dwh = PostgresHook(postgres_conn_id="PG_WAREHOUSE_CONNECTION")
-dwh_conn = dwh.get_conn()
-
 mongo = MongoConnect(
     cert_path=Variable.get("MONGO_DB_CERTIFICATE_PATH"),
     user=Variable.get("MONGO_DB_USER"),
@@ -42,61 +38,58 @@ def sprint5():
 
         @task
         def bonussystem_ranks():
-            columns = ["id", "name", "bonus_percent", "min_payment_threshold"]
             stg.extract_bonussystem_simple(
-                source_hook=dwh,
-                destintaion_conn=db_conn,
-                from_table="ranks",
-                to_table="bonussystem_ranks",
-                columns=columns,
+                hook_from=remote_pg,
+                table_from="ranks",
+                hook_to=dwh,
+                table_to="bonussystem_ranks",
+                columns=[
+                    "id",
+                    "name",
+                    "bonus_percent",
+                    "min_payment_threshold",
+                ],
             )
 
         @task
         def bonussystem_users():
-            columns = ["id", "order_user_id"]
             stg.extract_bonussystem_simple(
-                source_hook=dwh,
-                destintaion_conn=db_conn,
-                from_table="users",
-                to_table="bonussystem_users",
-                columns=columns,
+                hook_from=remote_pg,
+                table_from="users",
+                hook_to=dwh,
+                table_to="bonussystem_users",
+                columns=["id", "order_user_id"],
             )
 
         @task
         def ordersystem_restaurants():
-            client = mongo.client()
             stg.extract_ordersystem(
-                source_client=client,
-                destination_conn=dwh_conn,
-                from_collection="restaurants",
-                to_table="ordersystem_restaurants",
+                mongo_from=mongo,
+                hook_to=dwh,
+                collection_from="restaurants",
+                table_to="ordersystem_restaurants",
             )
 
         @task
         def ordersystem_users():
-            client = mongo.client()
             stg.extract_ordersystem(
-                source_client=client,
-                destination_conn=dwh_conn,
-                from_collection="users",
-                to_table="ordersystem_users",
+                mongo_from=mongo,
+                hook_to=dwh,
+                collection_from="users",
+                table_to="ordersystem_users",
             )
 
         @task
         def ordersystem_orders():
-            client = mongo.client()
             stg.extract_ordersystem(
-                source_client=client,
-                destination_conn=dwh_conn,
-                from_collection="orders",
-                to_table="ordersystem_orders",
+                mongo_from=mongo,
+                hook_to=dwh,
+                collection_from="orders",
+                table_to="ordersystem_orders",
             )
 
-        @task
         def bonussystem_events():
-            stg.extract_bonussystem_events(
-                source_conn=db_conn, destination_conn=dwh_conn
-            )
+            stg.extract_bonussystem_events(hook_from=remote_pg, hook_to=dwh)
 
         bonussystem_events()
         bonussystem_ranks()
@@ -109,24 +102,23 @@ def sprint5():
 
         @task
         def dm_restaurants():
-            dds.transform_dm_restaurants(conn_hook=dwh)
+            dds.transform_dm_restaurants(db_hook=dwh)
 
         @task
         def dm_timestamps():
-            dds.transform_dm_timestamps(conn_hook=dwh)
+            dds.transform_dm_timestamps(db_hook=dwh)
 
         @task
         def dm_products():
-            dds.transform_dm_products(conn_hook=dwh)
+            dds.transform_dm_products(db_hook=dwh)
 
         @task
         def dm_orders():
-            dds.transform_dm_orders(conn_hook=dwh)
+            dds.transform_dm_orders(db_hook=dwh)
 
         @task
         def fct_product_sales():
-            dds.transform_fct_product_sales(conn_hook=dwh)
-          
+            dds.transform_fct_product_sales(db_hook=dwh)
 
         dm_restaurants = dm_restaurants()
         dm_timestamps = dm_timestamps()
@@ -151,7 +143,6 @@ def sprint5():
     start >> staging >> detail_store >> data_marts >> end
 
 
-
 dag = sprint5()
 
 # 4.5.2: Двигайтесь дальше! Ваш код: WHBkgRkvLo
@@ -163,4 +154,4 @@ dag = sprint5()
 # 4.7.4: Двигайтесь дальше! Ваш код: y7M8bxX1z9
 # 4.7.5: Двигайтесь дальше! Ваш код: 8i8NjzMWsa
 # 4.7.6: Двигайтесь дальше! Ваш код: jemju9gmX7
-# 4.8.1: Двигайтесь дальше! Ваш код: dUY4sNFuOZ
+# 4.8.1: Двигайтесь дальше! Ваш код: QAJuAX0xGs
