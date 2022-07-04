@@ -23,4 +23,4 @@ alter table sales
     add constraint sales_products_id_fk 
         foreign key (product_id) references products (id);
 
--- Двигайтесь дальше! Ваш код: i6mYZs5YcY
+-- Двигайтесь дальше! Ваш код: OIoYDT7RQC
