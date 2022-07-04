@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, Iterable, List, Tuple, Callable
+from typing import Any, Dict, Iterable, List, Tuple, Callable, Union
 
 import psycopg2.extras
 from bson import json_util
@@ -104,22 +104,35 @@ def extract_field(*, object, path: str):
     return object
 
 
+def apply_action(
+    *,
+    object: Union[Dict, List],
+    path_action: Tuple[str, Callable[[Any], Any]],
+):
+    path, action = path_action
+    value = extract_field(object=object, path=path)
+
+    if action:
+        return action(value)
+    else:
+        return value
+
+
 def transform_data(
     *,
     source_data: Iterable,
     paths_actions: List[Tuple[str, Callable[[Any], Any]]],
     list_path: str = None,
-    paths_in_list: List[Tuple[str, Callable[[Any], Any]]] = None,
+    list_paths_actions: List[Tuple[str, Callable[[Any], Any]]] = None,
 ):
     for object in source_data:
 
         result: List[Any] = []
 
-        for field, action in paths_actions:
-            value = extract_field(object=object, path=field)
-            result.append(action(value))
+        apply = lambda pa: apply_action(path_action=pa, object=object)
+        result += map(apply, paths_actions)
 
-        if list_path is None or paths_in_list is None:
+        if list_path is None or list_paths_actions is None:
             yield result
         else:
             list_to_expand = extract_field(object=object, path=list_path)
@@ -127,8 +140,7 @@ def transform_data(
             for object in list_to_expand:
                 additional_fields: List[Any] = []
 
-                for field, action in paths_in_list:
-                    value = extract_field(object=object, path=field)
-                    result.append(action(value))
+                apply = lambda pa: apply_action(path_action=pa, object=object)
+                additional_fields += map(apply, paths_actions)
 
                 yield result + additional_fields
