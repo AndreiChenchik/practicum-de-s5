@@ -1,7 +1,9 @@
-from typing import Iterable, List
-from airflow.hooks.postgres_hook import PostgresHook
+from typing import List
 
-from utils import execute_sqls_by_batch, extract_fields_from_bson
+from airflow.hooks.postgres_hook import PostgresHook
+from bson import json_util
+
+from utils import execute_sqls_by_batch, transform_data, drop_ms
 
 future_date = "2099-12-31"
 bsod_table_select_sql = (
@@ -9,17 +11,6 @@ bsod_table_select_sql = (
         select object_id, update_ts, object_value from {for_table}
     """
 )
-
-
-# def extract_from_bsod_table(*, rows: Iterable, fields: List[str]):
-#     unpack_object = lambda item: [
-#         item[0],
-#         item[1].replace(microsecond=0),
-#     ] + extract_fields_from_bson(bson=item[2], fields=fields)
-
-#     unpacked_data = map(unpack_object, rows)
-
-#     return unpacked_data
 
 
 def prepare_sdc2_sql(
@@ -96,34 +87,34 @@ def prepare_sdc2_sql(
     return sqls
 
 
-# def extract_date_details(*, data: Iterable):
-#     for item in data:
-#         if item[3] not in ["CANCELLED", "CLOSED"]:
-#             continue
-
-#         ts = item[2].replace(microsecond=0)
-#         date = item[2].replace(microsecond=0).date()
-#         time = item[2].replace(microsecond=0).time()
-#         year = item[2].replace(microsecond=0).year
-#         month = item[2].replace(microsecond=0).month
-#         day = item[2].replace(microsecond=0).day
-
-#         yield [ts, date, time, year, month, day]
-
-
 def transform_dm_timestamps(*, db_hook: PostgresHook):
     conn = db_hook.get_conn()
     src_cur = conn.cursor()
 
     source_table = "stg.ordersystem_orders"
-    object_fields = ["date", "final_status"]
-
     src_cur.execute(bsod_table_select_sql(for_table=source_table))
     data = src_cur
 
-    data = extract_from_bsod_table(rows=data, fields=object_fields)
+    fields: List = [("2", json_util.loads)]  # full order
+    data = transform_data(data=data, paths_actions=fields)
 
-    data = extract_date_details(data=data)
+    fields = [
+        ("0.date", drop_ms),  # order date
+        ("0.final_status", None),  # order status
+    ]
+    data = transform_data(data=data, paths_actions=fields)
+
+    data = filter(lambda item: item[1] in ["CANCELLED", "CLOSED"], data)
+
+    fields = [
+        ("0", None),  # ts
+        ("0", lambda ts: ts.date()),  # date
+        ("0", lambda ts: ts.time()),  # time
+        ("0", lambda ts: ts.year),  # year
+        ("0", lambda ts: ts.month),  # month
+        ("0", lambda ts: ts.day),  # day
+    ]
+    data = transform_data(data=data, paths_actions=fields)
 
     sql = """
         with
@@ -147,25 +138,35 @@ def transform_dm_restaurants(*, db_hook: PostgresHook):
     src_cursor = conn.cursor()
 
     source_table = "stg.ordersystem_restaurants"
-    object_fields = ["name"]
-
     src_cursor.execute(bsod_table_select_sql(for_table=source_table))
     data = src_cursor
 
-    data = extract_from_bsod_table(rows=data, fields=object_fields)
+    fields: List = [
+        ("0", str),  # restaurant_id
+        ("1", None),  # update_ts
+        ("2", json_util.loads),  # full restaurant object
+    ]
+    data = transform_data(data=data, paths_actions=fields)
+
+    fields = [
+        ("0", None),  # restaurant_id
+        ("1", None),  # update_ts
+        ("2.name", None),  # restaurant_name
+    ]
+    data = transform_data(data=data, paths_actions=fields)
 
     table = "dds.dm_restaurants"
-    id = "restaurant_id"
-    columns = ["restaurant_name"]
+    sdc2_id = "restaurant_id"
+    sdc2_columns = ["restaurant_name"]
     data_cte_sql = f"""
         with
-            data ({id}, update_ts, {", ".join(columns)}) as (
+            data ({sdc2_id}, update_ts, {", ".join(sdc2_columns)}) as (
                 select * from (values %s) as external_values
             )
     """
 
     sqls = prepare_sdc2_sql(
-        data_cte_sql=data_cte_sql, table=table, id=id, columns=columns
+        data_cte_sql=data_cte_sql, table=table, id=sdc2_id, columns=sdc2_columns
     )
 
     dest_cursor = conn.cursor()
@@ -174,58 +175,63 @@ def transform_dm_restaurants(*, db_hook: PostgresHook):
     conn.commit()
 
 
-# def extract_menu(*, data: Iterable):
-#     for item in data:
-#         restaurant_id = item[0]
-#         update_ts = item[1]
-#         menu = item[2]
-
-#         menu.sort(key=lambda product: str(product["_id"]))
-#         for product in menu:
-#             id = str(product["_id"])
-#             name = product["name"]
-#             price = product["price"]
-
-#             yield [id, update_ts, restaurant_id, name, price]
-
-
 def transform_dm_products(*, db_hook: PostgresHook):
     conn = db_hook.get_conn()
     src_cursor = conn.cursor()
 
     source_table = "stg.ordersystem_restaurants"
-    object_fields = ["menu"]
-
     src_cursor.execute(bsod_table_select_sql(for_table=source_table))
     data = src_cursor
 
-    data = extract_from_bsod_table(rows=data, fields=object_fields)
-    data = extract_menu(data=data)
+    fields: List = [
+        ("0", str),  # restaurant_id
+        ("1", None),  # update_ts
+        ("2", json_util.loads),  # full restaurant object
+    ]
+    data = transform_data(data=data, paths_actions=fields)
 
-    table = "dds.dm_products"
-    id = "product_id"
-    columns = ["restaurant_id", "product_name", "product_price"]
+    fields = [
+        ("1", None),  # update_ts
+        ("0", None),  # restaurant_id
+    ]
+    list_fields = [
+        ("name", None),  # product_name
+        ("price", None),  # product_price
+        ("_id", str),  # product_id
+    ]
+    data = transform_data(
+        data=data,
+        paths_actions=fields,
+        list_path="2.menu",
+        list_paths_actions=list_fields,
+    )
+
+    sdc2_table = "dds.dm_products"
+    sdc2_id = "product_id"
+    sdc2_columns = ["restaurant_id", "product_name", "product_price"]
     data_cte_sql = f"""
         with
-            pre_data ({id}, update_ts, {", ".join(columns)}) as (
+            pre_data (update_ts, {", ".join(sdc2_columns)}, {sdc2_id}) as (
                 select * from (values %s) as external_values
             ),
 
-            data ({id}, update_ts, {", ".join(columns)}) as (
+            data ({sdc2_id}, update_ts, {", ".join(sdc2_columns)}) as (
                 select 
-                    pd.{id},
+                    pd.{sdc2_id},
                     pd.update_ts, 
                     dmr.id,
-                    pd.{", pd.".join(columns[1:])}
+                    pd.{", pd.".join(sdc2_columns[1:])}
                 from pre_data pd
                 left join dds.dm_restaurants dmr
                     on dmr.restaurant_id = pd.restaurant_id 
                         and dmr.active_to = '{future_date}'
             )
     """
-
     sqls = prepare_sdc2_sql(
-        data_cte_sql=data_cte_sql, table=table, id=id, columns=columns
+        data_cte_sql=data_cte_sql,
+        table=sdc2_table,
+        id=sdc2_id,
+        columns=sdc2_columns,
     )
 
     dest_cursor = conn.cursor()
@@ -238,22 +244,25 @@ def transform_dm_orders(*, db_hook: PostgresHook):
     src_cursor = conn.cursor()
 
     source_table = "stg.ordersystem_orders"
-    object_fields = ["date", "final_status", "user", "restaurant"]
-
     src_cursor.execute(bsod_table_select_sql(for_table=source_table))
     data = src_cursor
 
-    data = extract_from_bsod_table(rows=data, fields=object_fields)
-
-    extract_order_info = lambda item: [
-        item[0],  # order_key
-        item[1],  # update_ts
-        item[2].replace(microsecond=0),  # timestamp
-        item[3],  # order_status
-        str(item[4]["id"]),  # user_key
-        str(item[5]["id"]),  # restaurant_key
+    fields: List = [
+        ("0", str),  # order_id
+        ("1", None),  # update_ts
+        ("2", json_util.loads),  # full order object
     ]
-    data = map(extract_order_info, data)
+    data = transform_data(data=data, paths_actions=fields)
+
+    fields = [
+        ("0", None),  # order_key
+        ("1", None),  # update_ts
+        ("2.date", drop_ms),  # timestamp
+        ("2.final_status", None),  # order_status
+        ("2.user.id", str),  # user_key
+        ("2.restaurant.id", str),  # restaurant_key
+    ]
+    data = transform_data(data=data, paths_actions=fields)
 
     sql = f"""
         with data (
@@ -281,51 +290,39 @@ def transform_dm_orders(*, db_hook: PostgresHook):
     conn.commit()
 
 
-# def extract_order_items(*, data: Iterable):
-#     for item in data:
-#         order_key = item[0]
-#         update_ts = item[1]
-
-#         total_sum = item[2]
-#         bonus_payment = item[3]
-#         bonus_grant = item[4]
-
-#         cart = item[5]
-
-#         for product in cart:
-#             product_key = str(product["id"])
-#             price = product["price"]
-#             count = product["quantity"]
-
-#             yield [
-#                 order_key,
-#                 update_ts,
-#                 total_sum,
-#                 bonus_payment,
-#                 bonus_grant,
-#                 product_key,
-#                 price,
-#                 count,
-#             ]
-
-
 def transform_fct_product_sales(*, db_hook: PostgresHook):
     conn = db_hook.get_conn()
     src_cursor = conn.cursor()
 
     source_table = "stg.ordersystem_orders"
-    object_fields = [
-        "payment",
-        "bonus_payment",
-        "bonus_grant",
-        "order_items",
-    ]
-
     src_cursor.execute(bsod_table_select_sql(for_table=source_table))
     data = src_cursor
 
-    data = extract_from_bsod_table(rows=data, fields=object_fields)
-    data = extract_order_items(data=data)
+    fields: List = [
+        ("0", str),  # order_id
+        ("1", None),  # update_ts
+        ("2", json_util.loads),  # full order object
+    ]
+    data = transform_data(data=data, paths_actions=fields)
+
+    fields = [
+        ("0", None),  # order_key
+        ("1", None),  # update_ts
+        ("2.payment", None),  # total_sum
+        ("2.bonus_payment", None),  # bonus_payment
+        ("2.bonus_grant", None),  # bonus_grant
+    ]
+    list_fields = [
+        ("id", str),  # product_key
+        ("price", None),  # price
+        ("quantity", None),  # count
+    ]
+    data = transform_data(
+        data=data,
+        paths_actions=fields,
+        list_path="2.order_items",
+        list_paths_actions=list_fields,
+    )
 
     sql = f"""
         with data (

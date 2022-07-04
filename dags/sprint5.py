@@ -9,9 +9,8 @@ from airflow.utils.task_group import TaskGroup
 from mongo import MongoConnect
 
 import stg
-
-# import dds
-# import cdm
+import dds
+import cdm
 
 
 remote_pg = PostgresHook(postgres_conn_id="PG_ORIGIN_BONUS_SYSTEM_CONNECTION")
@@ -89,6 +88,7 @@ def sprint5():
                 table_to="ordersystem_orders",
             )
 
+        @task
         def bonussystem_events():
             stg.extract_bonussystem_events(hook_from=remote_pg, hook_to=dwh)
 
@@ -99,51 +99,49 @@ def sprint5():
         ordersystem_restaurants()
         ordersystem_users()
 
-    # with TaskGroup(group_id="detail_store") as detail_store:
+    with TaskGroup(group_id="detail_store") as detail_store:
 
-    #     @task
-    #     def dm_restaurants():
-    #         dds.transform_dm_restaurants(db_hook=dwh)
+        @task
+        def dm_restaurants():
+            dds.transform_dm_restaurants(db_hook=dwh)
 
-    #     @task
-    #     def dm_timestamps():
-    #         dds.transform_dm_timestamps(db_hook=dwh)
+        @task
+        def dm_timestamps():
+            dds.transform_dm_timestamps(db_hook=dwh)
 
-    #     @task
-    #     def dm_products():
-    #         dds.transform_dm_products(db_hook=dwh)
+        @task
+        def dm_products():
+            dds.transform_dm_products(db_hook=dwh)
 
-    #     @task
-    #     def dm_orders():
-    #         dds.transform_dm_orders(db_hook=dwh)
+        @task
+        def dm_orders():
+            dds.transform_dm_orders(db_hook=dwh)
 
-    #     @task
-    #     def fct_product_sales():
-    #         dds.transform_fct_product_sales(db_hook=dwh)
+        @task
+        def fct_product_sales():
+            dds.transform_fct_product_sales(db_hook=dwh)
 
-    #     dm_restaurants = dm_restaurants()
-    #     dm_timestamps = dm_timestamps()
-    #     dm_products = dm_products()
-    #     dm_orders = dm_orders()
-    #     fct_product_sales = fct_product_sales()
+        dm_restaurants = dm_restaurants()
+        dm_timestamps = dm_timestamps()
+        dm_products = dm_products()
+        dm_orders = dm_orders()
+        fct_product_sales = fct_product_sales()
 
-    #     dm_restaurants >> dm_products
-    #     [dm_timestamps, dm_restaurants] >> dm_orders
-    #     [dm_products, dm_orders] >> fct_product_sales
+        dm_restaurants >> dm_products
+        [dm_timestamps, dm_restaurants] >> dm_orders
+        [dm_products, dm_orders] >> fct_product_sales
 
-    # with TaskGroup(group_id="data_marts") as data_marts:
+    with TaskGroup(group_id="data_marts") as data_marts:
 
-    #     @task
-    #     def dm_settlement_report():
-    #         cdm.load_dm_settlement_report(conn_hook=dwh)
+        @task
+        def dm_settlement_report():
+            cdm.load_dm_settlement_report(conn_hook=dwh)
 
-    #     dm_settlement_report()
+        dm_settlement_report()
 
     end = DummyOperator(task_id="end")
 
-    start >> staging >> end
-
-    # start >> staging >> detail_store >> data_marts >> end
+    start >> staging >> detail_store >> data_marts >> end
 
 
 dag = sprint5()

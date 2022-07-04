@@ -1,8 +1,7 @@
 import json
-from typing import Any, Dict, Iterable, List, Tuple, Callable, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Callable, Union
 
 import psycopg2.extras
-from bson import json_util
 
 from datetime import datetime
 
@@ -68,26 +67,6 @@ def update_workflow_settings(*, cur, layer: str, table: str, param: str, value):
         return True
 
 
-# def extract_fields_from_bson(*, bson: str, fields: List[str]):
-#     object = json_util.loads(bson)
-#     fields = [object[field] for field in fields]
-#     return fields
-
-
-# def create_bsod_row_from_object(*, object: Dict, fields: List[str]):
-#     results = []
-
-#     id = str(object["_id"])
-#     results.append(id)
-
-#     fields = [object[field] for field in fields]
-#     results += fields
-
-#     json = json_util.dumps(object)
-#     results.append(json)
-
-#     return results
-
 drop_ms: Callable[[datetime], datetime] = lambda dt: dt.replace(microsecond=0)
 
 
@@ -120,12 +99,12 @@ def apply_action(
 
 def transform_data(
     *,
-    source_data: Iterable,
-    paths_actions: List[Tuple[str, Callable[[Any], Any]]],
-    list_path: str = None,
-    list_paths_actions: List[Tuple[str, Callable[[Any], Any]]] = None,
+    data: Iterable,
+    paths_actions: List,
+    list_path: Optional[str] = None,
+    list_paths_actions: Optional[List] = None,
 ):
-    for object in source_data:
+    for object in data:
 
         result: List[Any] = []
 
@@ -141,6 +120,6 @@ def transform_data(
                 additional_fields: List[Any] = []
 
                 apply = lambda pa: apply_action(path_action=pa, object=object)
-                additional_fields += map(apply, paths_actions)
+                additional_fields += map(apply, list_paths_actions)
 
                 yield result + additional_fields

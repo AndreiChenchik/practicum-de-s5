@@ -103,12 +103,12 @@ def extract_ordersystem(
     data = get_collection(client, collection_from, filter, "update_ts")
 
     # Prepare for insert
-    transform_1: List[Tuple[str, Callable[[Any], Any]]] = [
+    actions = [
         ("_id", str),
         ("update_ts", drop_ms),
         (".", json_util.dumps),
     ]
-    data = transform_data(source_data=data, paths_actions=transform_1)
+    data = transform_data(data=data, paths_actions=actions)  # type: ignore
 
     # Save to new place
     sql = f"""
