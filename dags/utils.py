@@ -1,11 +1,12 @@
 import json
-from typing import Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Callable, Union
 
 import psycopg2.extras
-from bson import json_util
+
+from datetime import datetime
 
 
-def execute_by_batch(*, cur, sqls: List[str], data: Iterable):
+def execute_sqls_by_batch(*, cur, sqls: List[str], data: Iterable):
     max_batch_size = 200
     batch: list = []
 
@@ -66,22 +67,59 @@ def update_workflow_settings(*, cur, layer: str, table: str, param: str, value):
         return True
 
 
-def extract_fields_from_bson(*, bson: str, fields: List[str]):
-    object = json_util.loads(bson)
-    fields = [object[field] for field in fields]
-    return fields
+drop_ms: Callable[[datetime], datetime] = lambda dt: dt.replace(microsecond=0)
 
 
-def create_bsod_row_from_object(*, object: Dict, fields: List[str]):
-    results = []
+def extract_field(*, object, path: str):
+    if path == ".":
+        return object
 
-    id = str(object["_id"])
-    results.append(id)
+    for index in path.split("."):
+        try:
+            object = object[int(index)]
+        except:
+            object = object[index]
 
-    fields = [object[field] for field in fields]
-    results += fields
+    return object
 
-    json = json_util.dumps(object)
-    results.append(json)
 
-    return results
+def apply_action(
+    *,
+    object: Union[Dict, List],
+    path_action: Tuple[str, Callable[[Any], Any]],
+):
+    path, action = path_action
+    value = extract_field(object=object, path=path)
+
+    if action:
+        return action(value)
+    else:
+        return value
+
+
+def transform_data(
+    *,
+    data: Iterable,
+    paths_actions: List,
+    list_path: Optional[str] = None,
+    list_paths_actions: Optional[List] = None,
+):
+    for object in data:
+
+        result: List[Any] = []
+
+        apply = lambda pa: apply_action(path_action=pa, object=object)
+        result += map(apply, paths_actions)
+
+        if list_path is None or list_paths_actions is None:
+            yield result
+        else:
+            list_to_expand = extract_field(object=object, path=list_path)
+
+            for object in list_to_expand:
+                additional_fields: List[Any] = []
+
+                apply = lambda pa: apply_action(path_action=pa, object=object)
+                additional_fields += map(apply, list_paths_actions)
+
+                yield result + additional_fields

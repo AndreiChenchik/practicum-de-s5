@@ -1,13 +1,16 @@
 from datetime import datetime
-from typing import List
+from typing import Any, Callable, List, Tuple
 
 from mongo import MongoConnect, get_collection
 from utils import (
     fetch_workflow_settings,
     update_workflow_settings,
-    execute_by_batch,
-    create_bsod_row_from_object,
+    execute_sqls_by_batch,
+    transform_data,
+    drop_ms,
 )
+
+from bson import json_util
 
 from airflow.hooks.postgres_hook import PostgresHook
 
@@ -59,7 +62,7 @@ def extract_bonussystem_events(
 
     # Save to new place
     sql = "insert into stg.bonussystem_events values %s"
-    execute_by_batch(data=src_cur, cur=dest_cur, sqls=[sql])
+    execute_sqls_by_batch(data=src_cur, cur=dest_cur, sqls=[sql])
 
     # Check latest saved id
     dest_cur.execute(
@@ -97,11 +100,15 @@ def extract_ordersystem(
 
     # Get data
     filter = {"update_ts": {"$gt": datetime.fromtimestamp(last_ts)}}
-    objects = get_collection(client, collection_from, filter, "update_ts")
-    transform = lambda object: create_bsod_row_from_object(
-        object=object, fields=["update_ts"]
-    )
-    rows = map(transform, objects)
+    data = get_collection(client, collection_from, filter, "update_ts")
+
+    # Prepare for insert
+    actions = [
+        ("_id", str),
+        ("update_ts", drop_ms),
+        (".", json_util.dumps),
+    ]
+    data = transform_data(data=data, paths_actions=actions)  # type: ignore
 
     # Save to new place
     sql = f"""
@@ -109,7 +116,7 @@ def extract_ordersystem(
             (object_id, update_ts, object_value) 
         values %s
     """
-    execute_by_batch(data=rows, cur=cur, sqls=[sql])
+    execute_sqls_by_batch(data=data, cur=cur, sqls=[sql])
 
     # Check latest saved id
     sql = f"""

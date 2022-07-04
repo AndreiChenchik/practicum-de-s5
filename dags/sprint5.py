@@ -88,6 +88,7 @@ def sprint5():
                 table_to="ordersystem_orders",
             )
 
+        @task
         def bonussystem_events():
             stg.extract_bonussystem_events(hook_from=remote_pg, hook_to=dwh)
 
