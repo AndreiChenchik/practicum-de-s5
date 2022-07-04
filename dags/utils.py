@@ -1,11 +1,13 @@
 import json
-from typing import Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Tuple, Callable
 
 import psycopg2.extras
 from bson import json_util
 
+from datetime import datetime
 
-def execute_by_batch(*, cur, sqls: List[str], data: Iterable):
+
+def execute_sqls_by_batch(*, cur, sqls: List[str], data: Iterable):
     max_batch_size = 200
     batch: list = []
 
@@ -66,22 +68,67 @@ def update_workflow_settings(*, cur, layer: str, table: str, param: str, value):
         return True
 
 
-def extract_fields_from_bson(*, bson: str, fields: List[str]):
-    object = json_util.loads(bson)
-    fields = [object[field] for field in fields]
-    return fields
+# def extract_fields_from_bson(*, bson: str, fields: List[str]):
+#     object = json_util.loads(bson)
+#     fields = [object[field] for field in fields]
+#     return fields
 
 
-def create_bsod_row_from_object(*, object: Dict, fields: List[str]):
-    results = []
+# def create_bsod_row_from_object(*, object: Dict, fields: List[str]):
+#     results = []
 
-    id = str(object["_id"])
-    results.append(id)
+#     id = str(object["_id"])
+#     results.append(id)
 
-    fields = [object[field] for field in fields]
-    results += fields
+#     fields = [object[field] for field in fields]
+#     results += fields
 
-    json = json_util.dumps(object)
-    results.append(json)
+#     json = json_util.dumps(object)
+#     results.append(json)
 
-    return results
+#     return results
+
+drop_ms: Callable[[datetime], datetime] = lambda dt: dt.replace(microsecond=0)
+
+
+def extract_field(*, object, path: str):
+    if path == ".":
+        return object
+
+    for index in path.split("."):
+        try:
+            object = object[int(index)]
+        except:
+            object = object[index]
+
+    return object
+
+
+def transform_data(
+    *,
+    source_data: Iterable,
+    paths_actions: List[Tuple[str, Callable[[Any], Any]]],
+    list_path: str = None,
+    paths_in_list: List[Tuple[str, Callable[[Any], Any]]] = None,
+):
+    for object in source_data:
+
+        result: List[Any] = []
+
+        for field, action in paths_actions:
+            value = extract_field(object=object, path=field)
+            result.append(action(value))
+
+        if list_path is None or paths_in_list is None:
+            yield result
+        else:
+            list_to_expand = extract_field(object=object, path=list_path)
+
+            for object in list_to_expand:
+                additional_fields: List[Any] = []
+
+                for field, action in paths_in_list:
+                    value = extract_field(object=object, path=field)
+                    result.append(action(value))
+
+                yield result + additional_fields
