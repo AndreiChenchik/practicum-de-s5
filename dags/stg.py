@@ -115,6 +115,15 @@ def extract_ordersystem(
         insert into stg.{table_to} 
             (object_id, update_ts, object_value) 
         values %s
+            on conflict 
+                (object_id)
+                do update set (
+                    update_ts,
+                    object_value
+                ) = (
+                    excluded.update_ts,
+                    excluded.object_value
+                )
     """
     execute_sqls_by_batch(data=data, cur=cur, sqls=[sql])
 
