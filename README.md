@@ -31,10 +31,9 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-Для выполнения заданий скачайте и запустите docker образ с базой данных и airflow (для заданий без debezium, иначе выполните запуск dockre-compose по инструкции с платформы):
+Для выполнения заданий выполните:
 
-`docker run -d --rm -p 3000:3000 -p 3002:3002 -p 15432:5432 --name=de-sprint-5-server-local sindb/de-pg-cr-af:latest
-`
+`docker compose up -d`
 
 Перед запуском тестов убедитесь что запущен контейнер.
 
